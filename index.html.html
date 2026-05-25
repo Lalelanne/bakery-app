@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crumb & Cost — Bakery Costing Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --cream: #FDF6EC; --warm-white: #FFFBF5; --blush: #F2C4A0;
+    --rose: #D4856A; --deep-rose: #A85C47; --chocolate: #3D1F10;
+    --mocha: #6B3A2A; --caramel: #C8813B; --gold: #E8B86D;
+    --sage: #8A9E7A; --sage-light: #C5D4BB; --lavender: #B8A9C9;
+    --text-dark: #2C1810; --text-mid: #6B4A3A; --text-light: #A0786A;
+    --border: #E8D5C4; --shadow: rgba(61,31,16,0.12); --shadow-hover: rgba(61,31,16,0.2);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text-dark); min-height: 100vh; overflow-x: hidden; }
+  body::before { content:''; position:fixed; inset:0; background: radial-gradient(ellipse 600px 400px at 10% 20%,rgba(242,196,160,.18) 0%,transparent 70%), radial-gradient(ellipse 500px 500px at 90% 80%,rgba(184,169,201,.15) 0%,transparent 70%); pointer-events:none; z-index:0; }
+  .app-wrapper { position:relative; z-index:1; }
+
+  /* ── AUTH SCREEN ── */
+  #authScreen {
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; padding:1rem;
+  }
+  .auth-box {
+    background:var(--warm-white); border:1.5px solid var(--border);
+    border-radius:24px; padding:2.5rem; width:100%; max-width:440px;
+    box-shadow:0 20px 60px rgba(61,31,16,.18);
+  }
+  .auth-logo { text-align:center; margin-bottom:2rem; }
+  .auth-logo-icon { font-size:3.5rem; display:block; margin-bottom:.5rem; }
+  .auth-logo-title { font-family:'Playfair Display',serif; font-size:2rem; font-weight:700; color:var(--chocolate); }
+  .auth-logo-sub { font-size:.78rem; color:var(--text-light); letter-spacing:.12em; text-transform:uppercase; }
+  .auth-tabs { display:flex; border-bottom:2px solid var(--border); margin-bottom:1.75rem; }
+  .auth-tab { flex:1; padding:.75rem; text-align:center; font-size:.88rem; font-weight:600; cursor:pointer; border:none; background:transparent; color:var(--text-light); border-bottom:2.5px solid transparent; margin-bottom:-2px; transition:all .2s; }
+  .auth-tab.active { color:var(--deep-rose); border-bottom-color:var(--deep-rose); }
+  .auth-panel { display:none; } .auth-panel.active { display:block; }
+  .form-group { display:flex; flex-direction:column; gap:5px; margin-bottom:1rem; }
+  label { font-size:.8rem; font-weight:600; color:var(--text-mid); text-transform:uppercase; letter-spacing:.06em; }
+  label .required { color:var(--rose); }
+  input[type=text],input[type=email],input[type=password],input[type=number],select,textarea {
+    width:100%; padding:.65rem 1rem; border:1.5px solid var(--border); border-radius:8px;
+    font-family:'DM Sans',sans-serif; font-size:.88rem; color:var(--text-dark);
+    background:var(--warm-white); transition:border-color .2s,box-shadow .2s; outline:none;
+  }
+  input:focus,select:focus,textarea:focus { border-color:var(--rose); box-shadow:0 0 0 3px rgba(212,133,106,.15); }
+  textarea { resize:vertical; min-height:90px; }
+  .btn { padding:.6rem 1.3rem; border:none; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:.88rem; font-weight:600; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:6px; }
+  .btn-primary { background:var(--deep-rose); color:white; width:100%; justify-content:center; }
+  .btn-primary:hover { background:var(--mocha); }
+  .btn-secondary { background:var(--border); color:var(--text-mid); }
+  .btn-secondary:hover { background:var(--blush); color:var(--chocolate); }
+  .btn-ghost { background:transparent; color:var(--rose); border:1.5px solid var(--rose); }
+  .btn-ghost:hover { background:var(--rose); color:white; }
+  .btn-danger { background:transparent; color:#C62828; border:1.5px solid #FFCDD2; }
+  .btn-danger:hover { background:#FFEBEE; }
+  .btn-sm { padding:.35rem .75rem; font-size:.78rem; }
+  .alert { padding:.75rem 1rem; border-radius:8px; font-size:.85rem; margin-bottom:1rem; display:flex; align-items:center; gap:8px; }
+  .alert-success { background:#E8F5E9; color:#2E7D32; border:1px solid #C8E6C9; }
+  .alert-error { background:#FFEBEE; color:#C62828; border:1px solid #FFCDD2; }
+  .alert-info { background:#E3F2FD; color:#1565C0; border:1px solid #BBDEFB; }
+  .auth-divider { text-align:center; color:var(--text-light); font-size:.78rem; margin:1rem 0; position:relative; }
+  .auth-divider::before,.auth-divider::after { content:''; position:absolute; top:50%; width:40%; height:1px; background:var(--border); }
+  .auth-divider::before { left:0; } .auth-divider::after { right:0; }
+  .auth-note { font-size:.78rem; color:var(--text-light); text-align:center; margin-top:1rem; line-height:1.5; }
+  .auth-link { color:var(--rose); cursor:pointer; font-weight:600; }
+  .auth-link:hover { text-decoration:underline; }
+  .spinner { width:18px; height:18px; border:2.5px solid rgba(255,255,255,.4); border-top-color:white; border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ── MAIN APP ── */
+  #mainApp { display:none; }
+  header { background:var(--chocolate); color:var(--cream); padding:0 2rem; display:flex; align-items:center; justify-content:space-between; height:70px; box-shadow:0 4px 24px rgba(0,0,0,.3); position:sticky; top:0; z-index:100; }
+  .logo { display:flex; align-items:center; gap:12px; }
+  .logo-icon { font-size:2rem; line-height:1; }
+  .logo-text { font-family:'Playfair Display',serif; font-size:1.5rem; font-weight:700; letter-spacing:-.02em; color:var(--gold); }
+  .logo-sub { font-size:.7rem; color:var(--blush); letter-spacing:.15em; text-transform:uppercase; font-weight:300; display:block; margin-top:-2px; }
+  .header-right { display:flex; align-items:center; gap:.75rem; }
+  .user-badge { background:rgba(255,255,255,.1); color:var(--blush); padding:4px 12px; border-radius:20px; font-size:.75rem; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .recipe-count-badge { background:var(--rose); color:white; padding:4px 12px; border-radius:20px; font-size:.78rem; font-weight:600; }
+  nav { background:var(--warm-white); border-bottom:2px solid var(--border); padding:0 2rem; display:flex; gap:0; overflow-x:auto; }
+  .nav-btn { padding:1rem 1.4rem; border:none; background:transparent; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:.85rem; font-weight:500; color:var(--text-light); border-bottom:3px solid transparent; margin-bottom:-2px; white-space:nowrap; transition:all .2s; display:flex; align-items:center; gap:6px; }
+  .nav-btn:hover { color:var(--rose); }
+  .nav-btn.active { color:var(--deep-rose); border-bottom-color:var(--deep-rose); font-weight:600; }
+  main { max-width:1200px; margin:0 auto; padding:2rem; }
+  .page { display:none; } .page.active { display:block; }
+  .page-header { margin-bottom:2rem; position:relative; }
+  .page-title { font-family:'Playfair Display',serif; font-size:2.2rem; font-weight:700; color:var(--chocolate); line-height:1.1; }
+  .page-title em { color:var(--rose); font-style:italic; }
+  .page-subtitle { color:var(--text-light); margin-top:.4rem; font-size:.9rem; }
+  .page-deco { position:absolute; right:2rem; top:2rem; font-size:5rem; opacity:.07; pointer-events:none; line-height:1; }
+  .card { background:var(--warm-white); border:1.5px solid var(--border); border-radius:16px; padding:1.75rem; box-shadow:0 2px 12px var(--shadow); transition:box-shadow .2s; }
+  .card:hover { box-shadow:0 4px 24px var(--shadow-hover); }
+  .card-title { font-family:'Playfair Display',serif; font-size:1.15rem; font-weight:600; color:var(--chocolate); margin-bottom:1.25rem; padding-bottom:.75rem; border-bottom:1.5px solid var(--border); display:flex; align-items:center; gap:8px; }
+  .dashboard-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1.25rem; margin-bottom:2rem; }
+  .stat-card { background:var(--warm-white); border:1.5px solid var(--border); border-radius:16px; padding:1.5rem; text-align:center; box-shadow:0 2px 12px var(--shadow); position:relative; overflow:hidden; }
+  .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg,var(--rose),var(--gold)); }
+  .stat-icon { font-size:2rem; margin-bottom:.5rem; display:block; }
+  .stat-value { font-family:'Playfair Display',serif; font-size:2rem; font-weight:700; color:var(--chocolate); }
+  .stat-label { font-size:.78rem; color:var(--text-light); text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+  .dashboard-actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; margin-bottom:2rem; }
+  .action-card { background:var(--warm-white); border:1.5px solid var(--border); border-radius:16px; padding:1.5rem; cursor:pointer; transition:all .2s; display:flex; align-items:center; gap:1rem; box-shadow:0 2px 8px var(--shadow); }
+  .action-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px var(--shadow-hover); border-color:var(--rose); }
+  .action-icon { width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0; }
+  .action-icon.rose { background:linear-gradient(135deg,#F2C4A0,#D4856A); }
+  .action-icon.sage { background:linear-gradient(135deg,#C5D4BB,#8A9E7A); }
+  .action-icon.lavender { background:linear-gradient(135deg,#D4CBE8,#B8A9C9); }
+  .action-icon.gold { background:linear-gradient(135deg,#F5DBA0,#E8B86D); }
+  .action-text strong { display:block; font-weight:600; color:var(--chocolate); font-size:.92rem; }
+  .action-text span { font-size:.78rem; color:var(--text-light); }
+  .recipe-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:1.25rem; }
+  .recipe-card { background:var(--warm-white); border:1.5px solid var(--border); border-radius:16px; overflow:hidden; box-shadow:0 2px 12px var(--shadow); transition:all .2s; cursor:pointer; }
+  .recipe-card:hover { transform:translateY(-4px); box-shadow:0 10px 28px var(--shadow-hover); border-color:var(--rose); }
+  .recipe-card-header { padding:1.25rem 1.25rem .75rem; background:linear-gradient(135deg,var(--chocolate) 0%,var(--mocha) 100%); color:var(--cream); display:flex; align-items:flex-start; justify-content:space-between; }
+  .recipe-emoji { font-size:2.5rem; line-height:1; }
+  .recipe-card-name { font-family:'Playfair Display',serif; font-size:1.1rem; font-weight:700; color:var(--gold); margin-top:.5rem; }
+  .recipe-card-yield { font-size:.78rem; color:var(--blush); margin-top:2px; }
+  .recipe-card-body { padding:1rem 1.25rem 1.25rem; }
+  .recipe-cost-row { display:flex; justify-content:space-between; align-items:center; padding:.4rem 0; border-bottom:1px dashed var(--border); font-size:.82rem; color:var(--text-mid); }
+  .recipe-cost-row:last-child { border-bottom:none; }
+  .recipe-cost-row strong { color:var(--chocolate); font-weight:600; }
+  .profit-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:.78rem; font-weight:600; }
+  .profit-badge.good { background:#E8F5E9; color:#2E7D32; }
+  .profit-badge.warn { background:#FFF8E1; color:#F57F17; }
+  .profit-badge.bad { background:#FFEBEE; color:#C62828; }
+  .recipe-card-actions { display:flex; gap:.5rem; margin-top:.75rem; }
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  .form-group.full { grid-column:1/-1; }
+  .input-prefix-wrapper { position:relative; display:flex; align-items:center; }
+  .input-prefix { position:absolute; left:10px; font-size:.85rem; color:var(--text-light); font-weight:600; pointer-events:none; }
+  .input-prefix-wrapper input { padding-left:1.8rem; }
+  .ingredient-row { display:grid; grid-template-columns:2.5fr 1fr 1.2fr 1.2fr auto; gap:.6rem; align-items:center; padding:.6rem 0; border-bottom:1px dashed var(--border); }
+  .ingredient-row:last-child { border-bottom:none; }
+  .ingredient-row-price { font-size:.78rem; color:var(--sage); font-weight:600; }
+  .overhead-row { display:grid; grid-template-columns:2fr 1.5fr 1fr auto; gap:.6rem; align-items:center; padding:.6rem 0; border-bottom:1px dashed var(--border); }
+  .section-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:1.5rem; overflow-x:auto; }
+  .section-tab { padding:.65rem 1.1rem; font-size:.82rem; font-weight:500; cursor:pointer; border:none; background:transparent; color:var(--text-light); border-bottom:2.5px solid transparent; margin-bottom:-2px; white-space:nowrap; transition:all .2s; }
+  .section-tab.active { color:var(--deep-rose); border-bottom-color:var(--deep-rose); font-weight:600; }
+  .cost-summary { background:linear-gradient(135deg,var(--chocolate),var(--mocha)); border-radius:16px; padding:1.5rem; color:var(--cream); margin-top:1.5rem; }
+  .cost-summary-title { font-family:'Playfair Display',serif; font-size:1.1rem; color:var(--gold); margin-bottom:1rem; }
+  .cost-line { display:flex; justify-content:space-between; padding:.4rem 0; font-size:.88rem; border-bottom:1px solid rgba(255,255,255,.1); color:var(--blush); }
+  .cost-line.total { font-weight:700; font-size:1rem; color:var(--gold); border-bottom:none; padding-top:.7rem; }
+  .cost-line.profit { font-weight:700; font-size:1rem; border-bottom:none; }
+  .profit-positive { color:#A5D6A7; } .profit-negative { color:#EF9A9A; }
+  .compare-bars { display:flex; flex-direction:column; gap:1rem; margin-top:1rem; }
+  .compare-row { display:flex; align-items:center; gap:1rem; }
+  .compare-label { width:150px; font-size:.82rem; font-weight:600; color:var(--chocolate); flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .compare-bar-track { flex:1; height:28px; background:var(--border); border-radius:6px; overflow:hidden; }
+  .compare-bar-fill { height:100%; border-radius:6px; display:flex; align-items:center; padding-left:8px; font-size:.75rem; font-weight:600; color:white; transition:width .6s cubic-bezier(.4,0,.2,1); min-width:40px; }
+  .library-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:.75rem; margin-top:1rem; }
+  .library-item { background:var(--warm-white); border:1.5px solid var(--border); border-radius:10px; padding:.8rem 1rem; display:flex; justify-content:space-between; align-items:center; font-size:.85rem; }
+  .library-item-name { font-weight:600; color:var(--chocolate); }
+  .library-item-price { color:var(--rose); font-weight:700; }
+  .library-item-unit { color:var(--text-light); font-size:.75rem; }
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(44,24,16,.5); backdrop-filter:blur(4px); z-index:200; align-items:center; justify-content:center; padding:1rem; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--warm-white); border-radius:20px; padding:2rem; max-width:520px; width:100%; box-shadow:0 24px 64px rgba(0,0,0,.3); max-height:90vh; overflow-y:auto; }
+  .modal-title { font-family:'Playfair Display',serif; font-size:1.3rem; font-weight:700; color:var(--chocolate); margin-bottom:1.25rem; }
+  .empty-state { text-align:center; padding:4rem 2rem; color:var(--text-light); }
+  .empty-state-icon { font-size:4rem; display:block; margin-bottom:1rem; }
+  .empty-state h3 { font-family:'Playfair Display',serif; font-size:1.4rem; color:var(--text-mid); margin-bottom:.5rem; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:20px; font-size:.73rem; font-weight:600; background:var(--border); color:var(--text-mid); }
+  .search-box { position:relative; margin-bottom:1.25rem; }
+  .search-box input { padding-left:2.5rem; }
+  .search-box::before { content:'🔍'; position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:.85rem; pointer-events:none; }
+  .detail-section { margin-bottom:1.5rem; }
+  .detail-section h3 { font-family:'Playfair Display',serif; font-size:1rem; color:var(--mocha); margin-bottom:.75rem; display:flex; align-items:center; gap:6px; }
+  .detail-table { width:100%; border-collapse:collapse; font-size:.85rem; }
+  .detail-table th { text-align:left; font-size:.73rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text-light); padding:.4rem .6rem; border-bottom:1.5px solid var(--border); }
+  .detail-table td { padding:.5rem .6rem; color:var(--text-dark); border-bottom:1px dashed var(--border); }
+  .detail-table tr:last-child td { border-bottom:none; }
+  .detail-table .amt-col { text-align:right; font-weight:600; }
+  .instructions-box { background:linear-gradient(135deg,rgba(242,196,160,.15),rgba(200,129,59,.08)); border:1.5px solid var(--blush); border-radius:10px; padding:1rem 1.25rem; font-size:.88rem; color:var(--text-mid); line-height:1.7; white-space:pre-wrap; }
+  .loading-overlay { position:fixed; inset:0; background:var(--cream); display:flex; align-items:center; justify-content:center; z-index:999; flex-direction:column; gap:1rem; }
+  .loading-spinner { width:48px; height:48px; border:4px solid var(--border); border-top-color:var(--rose); border-radius:50%; animation:spin .8s linear infinite; }
+  .currency-label { /* inline */ }
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:var(--cream); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--blush); }
+  @media (max-width:640px) {
+    main { padding:1rem; }
+    .form-grid { grid-template-columns:1fr; }
+    .ingredient-row { grid-template-columns:1fr 1fr; }
+    .compare-label { width:90px; }
+    .page-deco { display:none; }
+    .header-right .user-badge { display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="app-wrapper">
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <span style="font-size:3rem">🎂</span>
+  <div class="loading-spinner"></div>
+  <div style="font-family:'Playfair Display',serif;color:var(--chocolate);font-size:1.1rem;">Loading your bakery…</div>
+</div>
+
+<!-- ═══════════════ AUTH SCREEN ═══════════════ -->
+<div id="authScreen" style="display:none;">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <span class="auth-logo-icon">🎂</span>
+      <div class="auth-logo-title">Crumb & Cost</div>
+      <div class="auth-logo-sub">Bakery Costing Studio</div>
+    </div>
+
+    <div id="authAlert"></div>
+
+    <!-- TABS -->
+    <div class="auth-tabs" id="authTabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="switchAuthTab('signup')">Create Account</button>
+      <button class="auth-tab" onclick="switchAuthTab('verify')">Verify Email</button>
+      <button class="auth-tab" onclick="switchAuthTab('reset')">Reset Password</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="auth-panel active" id="panel-login">
+      <div class="form-group">
+        <label>Email Address <span class="required">*</span></label>
+        <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Password <span class="required">*</span></label>
+        <input type="password" id="loginPassword" placeholder="Your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()" id="loginBtn">Sign In</button>
+      <div class="auth-note">
+        Don't have an account? <span class="auth-link" onclick="switchAuthTab('signup')">Create one</span><br>
+        <span class="auth-link" onclick="switchAuthTab('reset')">Forgot your password?</span>
+      </div>
+    </div>
+
+    <!-- SIGN UP -->
+    <div class="auth-panel" id="panel-signup">
+      <div class="form-group">
+        <label>Email Address <span class="required">*</span></label>
+        <input type="email" id="signupEmail" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Password <span class="required">*</span></label>
+        <input type="password" id="signupPassword" placeholder="Min. 6 characters" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label>Confirm Password <span class="required">*</span></label>
+        <input type="password" id="signupConfirm" placeholder="Repeat password" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSignup()">
+      </div>
+      <button class="btn btn-primary" onclick="doSignup()" id="signupBtn">Create Account</button>
+      <div class="auth-note">A verification code will be sent to your email.<br>Already have an account? <span class="auth-link" onclick="switchAuthTab('login')">Sign in</span></div>
+    </div>
+
+    <!-- VERIFY -->
+    <div class="auth-panel" id="panel-verify">
+      <p style="font-size:.88rem;color:var(--text-mid);margin-bottom:1.25rem;line-height:1.6;">
+        We sent a 6-digit verification code to your email. Enter it below to confirm your account.
+      </p>
+      <div class="form-group">
+        <label>Email Address <span class="required">*</span></label>
+        <input type="email" id="verifyEmail" placeholder="you@example.com">
+      </div>
+      <div class="form-group">
+        <label>Verification Code <span class="required">*</span></label>
+        <input type="text" id="verifyCode" placeholder="123456" maxlength="6" style="letter-spacing:.3em;font-size:1.3rem;text-align:center;font-weight:700;" onkeydown="if(event.key==='Enter')doVerify()">
+      </div>
+      <button class="btn btn-primary" onclick="doVerify()" id="verifyBtn">Verify & Sign In</button>
+      <div class="auth-note">Didn't get the code? Check your spam folder or <span class="auth-link" onclick="resendCode()">resend it</span>.</div>
+    </div>
+
+    <!-- RESET PASSWORD -->
+    <div class="auth-panel" id="panel-reset">
+      <p style="font-size:.88rem;color:var(--text-mid);margin-bottom:1.25rem;line-height:1.6;">
+        Enter your email and we'll send you a link to reset your password.
+      </p>
+      <div class="form-group">
+        <label>Email Address <span class="required">*</span></label>
+        <input type="email" id="resetEmail" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doReset()">
+      </div>
+      <button class="btn btn-primary" onclick="doReset()" id="resetBtn">Send Reset Link</button>
+      <div class="auth-note"><span class="auth-link" onclick="switchAuthTab('login')">← Back to Sign In</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MAIN APP ═══════════════ -->
+<div id="mainApp">
+  <header>
+    <div class="logo">
+      <span class="logo-icon">🎂</span>
+      <div>
+        <div class="logo-text">Crumb & Cost</div>
+        <span class="logo-sub">Bakery Costing Studio</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="user-badge" id="userEmailBadge">user@email.com</span>
+      <span class="recipe-count-badge" id="headerRecipeCount">0 Recipes</span>
+      <button class="btn btn-primary btn-sm" onclick="showPage('new-recipe')">＋ New Recipe</button>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.12);color:var(--blush);border:1px solid rgba(255,255,255,.2);" onclick="doSignOut()" title="Sign out">⏻</button>
+    </div>
+  </header>
+
+  <nav>
+    <button class="nav-btn active" data-page="dashboard" onclick="showPage('dashboard')">🏠 Dashboard</button>
+    <button class="nav-btn" data-page="recipes" onclick="showPage('recipes')">📋 My Recipes</button>
+    <button class="nav-btn" data-page="new-recipe" onclick="showPage('new-recipe')">✨ New Recipe</button>
+    <button class="nav-btn" data-page="ingredients-library" onclick="showPage('ingredients-library')">🫙 Ingredient Library</button>
+    <button class="nav-btn" data-page="compare" onclick="showPage('compare')">📊 Compare</button>
+  </nav>
+
+  <main>
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div class="page-title">Welcome to your <em>Bakery Studio</em></div>
+        <div class="page-subtitle">Track costs, maximise profits, and grow your baking business.</div>
+        <div class="page-deco">🍪</div>
+      </div>
+      <div class="dashboard-grid">
+        <div class="stat-card"><span class="stat-icon">📋</span><div class="stat-value" id="statRecipes">0</div><div class="stat-label">Total Recipes</div></div>
+        <div class="stat-card"><span class="stat-icon">💰</span><div class="stat-value" id="statAvgCost">$0.00</div><div class="stat-label">Avg. Total Cost</div></div>
+        <div class="stat-card"><span class="stat-icon">📈</span><div class="stat-value" id="statAvgMargin">0%</div><div class="stat-label">Avg. Profit Margin</div></div>
+        <div class="stat-card"><span class="stat-icon">🏆</span><div class="stat-value" id="statBestRecipe" style="font-size:1.1rem">—</div><div class="stat-label">Most Profitable</div></div>
+      </div>
+      <div class="dashboard-actions">
+        <div class="action-card" onclick="showPage('new-recipe')"><div class="action-icon rose">✨</div><div class="action-text"><strong>Create New Recipe</strong><span>Add ingredients, costs & pricing</span></div></div>
+        <div class="action-card" onclick="showPage('recipes')"><div class="action-icon gold">📋</div><div class="action-text"><strong>View All Recipes</strong><span>Edit & manage your recipes</span></div></div>
+        <div class="action-card" onclick="showPage('ingredients-library')"><div class="action-icon sage">🫙</div><div class="action-text"><strong>Ingredient Library</strong><span>Manage pricing database</span></div></div>
+        <div class="action-card" onclick="showPage('compare')"><div class="action-icon lavender">📊</div><div class="action-text"><strong>Compare Recipes</strong><span>Analyse profitability</span></div></div>
+      </div>
+      <div class="card"><div class="card-title">🍰 Recent Recipes</div><div id="dashboardRecent"></div></div>
+    </div>
+
+    <!-- MY RECIPES -->
+    <div class="page" id="page-recipes">
+      <div class="page-header">
+        <div class="page-title">My <em>Recipes</em></div>
+        <div class="page-subtitle">Click any recipe to view, edit, or delete.</div>
+        <div class="page-deco">🧁</div>
+      </div>
+      <div class="search-box"><input type="text" id="recipeSearch" placeholder="Search recipes…" oninput="renderRecipeList()"></div>
+      <div id="recipeGrid" class="recipe-grid"></div>
+    </div>
+
+    <!-- NEW / EDIT RECIPE -->
+    <div class="page" id="page-new-recipe">
+      <div class="page-header">
+        <div class="page-title" id="recipeFormTitle">Create a <em>New Recipe</em></div>
+        <div class="page-subtitle">Fill in all costing fields. Method is optional.</div>
+        <div class="page-deco">🎂</div>
+      </div>
+      <div id="formAlert"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;">
+        <div class="card" style="grid-column:1/-1;">
+          <div class="card-title">📝 Recipe Details</div>
+          <div class="form-grid">
+            <div class="form-group"><label>Recipe Name <span class="required">*</span></label><input type="text" id="rName" placeholder="e.g. Classic Victoria Sponge"></div>
+            <div class="form-group"><label>Category <span class="required">*</span></label>
+              <select id="rCategory">
+                <option value="">Select category…</option>
+                <option>Cakes</option><option>Cupcakes</option><option>Cookies & Biscuits</option>
+                <option>Bread & Loaves</option><option>Tarts & Pies</option><option>Pastries</option>
+                <option>Brownies & Bars</option><option>Celebration Cakes</option><option>Other</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Batch Yield (units) <span class="required">*</span></label><input type="number" id="rYield" min="1" placeholder="e.g. 12"></div>
+            <div class="form-group"><label>Selling Price per unit ($) <span class="required">*</span></label><div class="input-prefix-wrapper"><span class="input-prefix">$</span><input type="number" id="rSellPrice" min="0" step="0.01" placeholder="0.00"></div></div>
+            <div class="form-group full"><label>Method / Instructions <span style="color:var(--text-light);font-weight:400;text-transform:none;">(optional)</span></label><textarea id="rMethod" placeholder="Describe the baking steps here… (optional)"></textarea></div>
+          </div>
+        </div>
+      </div>
+      <div class="section-tabs">
+        <button class="section-tab active" onclick="switchSection('core')">🧈 Core Ingredients</button>
+        <button class="section-tab" onclick="switchSection('deco')">🌸 Decorating</button>
+        <button class="section-tab" onclick="switchSection('pack')">📦 Packaging</button>
+        <button class="section-tab" onclick="switchSection('overhead')">⚡ Overheads</button>
+      </div>
+      <div id="section-core" class="card" style="margin-bottom:1.25rem;">
+        <div class="card-title">🧈 Core Ingredients</div>
+        <div style="display:grid;grid-template-columns:2.5fr 1fr 1.2fr 1.2fr 40px;gap:.6rem;padding:.4rem 0;border-bottom:2px solid var(--border);margin-bottom:.5rem;">
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Ingredient</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Qty</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Unit</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Cost ($)</span>
+          <span></span>
+        </div>
+        <div id="coreRows"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:.75rem" onclick="addIngredientRow('core')">＋ Add Ingredient</button>
+      </div>
+      <div id="section-deco" class="card" style="display:none;margin-bottom:1.25rem;">
+        <div class="card-title">🌸 Decorating Ingredients</div>
+        <div style="display:grid;grid-template-columns:2.5fr 1fr 1.2fr 1.2fr 40px;gap:.6rem;padding:.4rem 0;border-bottom:2px solid var(--border);margin-bottom:.5rem;">
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Item</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Qty</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Unit</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Cost ($)</span>
+          <span></span>
+        </div>
+        <div id="decoRows"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:.75rem" onclick="addIngredientRow('deco')">＋ Add Item</button>
+      </div>
+      <div id="section-pack" class="card" style="display:none;margin-bottom:1.25rem;">
+        <div class="card-title">📦 Packaging Materials</div>
+        <div style="display:grid;grid-template-columns:2.5fr 1fr 1.2fr 1.2fr 40px;gap:.6rem;padding:.4rem 0;border-bottom:2px solid var(--border);margin-bottom:.5rem;">
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Item</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Qty</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Unit</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Cost ($)</span>
+          <span></span>
+        </div>
+        <div id="packRows"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:.75rem" onclick="addIngredientRow('pack')">＋ Add Item</button>
+      </div>
+      <div id="section-overhead" class="card" style="display:none;margin-bottom:1.25rem;">
+        <div class="card-title">⚡ Overheads</div>
+        <div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 40px;gap:.6rem;padding:.4rem 0;border-bottom:2px solid var(--border);margin-bottom:.5rem;">
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Description</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Category</span>
+          <span style="font-size:.73rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light)">Cost ($)</span>
+          <span></span>
+        </div>
+        <div id="overheadRows"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:.75rem" onclick="addOverheadRow()">＋ Add Overhead</button>
+      </div>
+      <div class="cost-summary" id="liveCostSummary">
+        <div class="cost-summary-title">💵 Live Cost Summary</div>
+        <div id="liveSummaryContent"><div style="color:var(--blush);font-size:.85rem;">Add ingredients and enter a selling price to see your cost breakdown.</div></div>
+      </div>
+      <div style="display:flex;gap:1rem;margin-top:1.5rem;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="saveRecipe()" id="saveRecipeBtn">💾 Save Recipe</button>
+        <button class="btn btn-secondary" onclick="showPage('recipes')">Cancel</button>
+        <button class="btn btn-danger" id="deleteRecipeBtn" style="display:none;margin-left:auto;" onclick="deleteCurrentRecipe()">🗑 Delete Recipe</button>
+      </div>
+    </div>
+
+    <!-- INGREDIENT LIBRARY -->
+    <div class="page" id="page-ingredients-library">
+      <div class="page-header">
+        <div class="page-title">Ingredient <em>Library</em></div>
+        <div class="page-subtitle">Prices set here auto-fill when you use the same item in a recipe.</div>
+        <div class="page-deco">🫙</div>
+      </div>
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-title">➕ Add / Update Item</div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1.2fr 1.2fr auto;gap:.75rem;align-items:end;">
+          <div class="form-group"><label>Item Name <span class="required">*</span></label><input type="text" id="libName" placeholder="e.g. Salted Butter" list="libNameSuggestions"><datalist id="libNameSuggestions"></datalist></div>
+          <div class="form-group"><label>Qty per pack</label><input type="number" id="libQty" min="0" step="any" placeholder="e.g. 250"></div>
+          <div class="form-group"><label>Unit</label>
+            <select id="libUnit"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>tsp</option><option>tbsp</option><option>cup</option><option>each</option><option>pack</option><option>box</option><option>roll</option><option>sheet</option><option>other</option></select>
+          </div>
+          <div class="form-group"><label>Price per pack ($) <span class="required">*</span></label><div class="input-prefix-wrapper"><span class="input-prefix">$</span><input type="number" id="libPrice" min="0" step="0.01" placeholder="0.00"></div></div>
+          <button class="btn btn-primary" onclick="addLibraryItem()" style="margin-bottom:0">Save</button>
+        </div>
+        <div id="libAlert" style="margin-top:.75rem;"></div>
+      </div>
+      <div class="search-box"><input type="text" id="libSearch" placeholder="Search ingredient library…" oninput="renderLibrary()"></div>
+      <div id="libraryGrid" class="library-grid"></div>
+    </div>
+
+    <!-- COMPARE -->
+    <div class="page" id="page-compare">
+      <div class="page-header">
+        <div class="page-title">Profitability <em>Compare</em></div>
+        <div class="page-subtitle">See which recipes make you the most money.</div>
+        <div class="page-deco">📊</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;">
+        <div class="card"><div class="card-title">💵 Profit per Unit</div><div class="compare-bars" id="compareProfitPerUnit"></div></div>
+        <div class="card"><div class="card-title">📈 Profit Margin %</div><div class="compare-bars" id="compareMargin"></div></div>
+      </div>
+      <div class="card"><div class="card-title">📋 Full Recipe Comparison</div><div id="compareTable" style="overflow-x:auto;"></div></div>
+    </div>
+  </main>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal" style="max-width:700px;">
+    <div id="detailModalContent"></div>
+    <div style="display:flex;gap:.75rem;margin-top:1.5rem;flex-wrap:wrap;">
+      <button class="btn btn-primary" id="detailEditBtn">✏️ Edit Recipe</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+      <button class="btn btn-danger" id="detailDeleteBtn" style="margin-left:auto;">🗑 Delete</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- app-wrapper -->
+
+<script>
+// ═══════════════════════════════════════════════
+//  SUPABASE INIT
+// ═══════════════════════════════════════════════
+const SUPABASE_URL = 'https://ndtlnuagverajlgkrylu.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5kdGxudWFndmVyYWpsZ2tyeWx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNjYyNDcsImV4cCI6MjA5NDg0MjI0N30.nfbm_tW6qf3ZSPY0-1W9vDgsIL5j1hh9DEF6OKb7ck0';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+let currentUser = null;
+let recipes = [];
+let library = [];
+let editingId = null;
+let coreCounter = 0, decoCounter = 0, packCounter = 0, overheadCounter = 0;
+
+// ═══════════════════════════════════════════════
+//  CURRENCY
+// ═══════════════════════════════════════════════
+function cur() { return '$'; }
+
+// ═══════════════════════════════════════════════
+//  AUTH UI
+// ═══════════════════════════════════════════════
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t,i) => {
+    t.classList.toggle('active', ['login','signup','verify','reset'][i] === tab);
+  });
+  document.querySelectorAll('.auth-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  document.getElementById('authAlert').innerHTML = '';
+}
+
+function showAuthAlert(msg, type='error') {
+  document.getElementById('authAlert').innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+}
+
+function setLoading(btnId, loading, label='') {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.innerHTML = loading
+    ? `<div class="spinner"></div> Please wait…`
+    : label;
+}
+
+async function doSignup() {
+  const email = document.getElementById('signupEmail').value.trim();
+  const pass = document.getElementById('signupPassword').value;
+  const conf = document.getElementById('signupConfirm').value;
+  if (!email || !pass) return showAuthAlert('Please enter your email and password.');
+  if (pass.length < 6) return showAuthAlert('Password must be at least 6 characters.');
+  if (pass !== conf) return showAuthAlert('Passwords do not match.');
+  setLoading('signupBtn', true);
+  const { error } = await sb.auth.signUp({ email, password: pass });
+  setLoading('signupBtn', false, 'Create Account');
+  if (error) return showAuthAlert(error.message);
+  document.getElementById('verifyEmail').value = email;
+  showAuthAlert('✅ Account created! Check your email for a 6-digit verification code.', 'success');
+  setTimeout(() => switchAuthTab('verify'), 1800);
+}
+
+async function doVerify() {
+  const email = document.getElementById('verifyEmail').value.trim();
+  const token = document.getElementById('verifyCode').value.trim();
+  if (!email || !token) return showAuthAlert('Please enter your email and the verification code.');
+  setLoading('verifyBtn', true);
+  const { error } = await sb.auth.verifyOtp({ email, token, type: 'signup' });
+  setLoading('verifyBtn', false, 'Verify & Sign In');
+  if (error) return showAuthAlert(error.message);
+  showAuthAlert('✅ Email verified! Signing you in…', 'success');
+}
+
+async function resendCode() {
+  const email = document.getElementById('verifyEmail').value.trim();
+  if (!email) return showAuthAlert('Please enter your email address first.');
+  const { error } = await sb.auth.resend({ type: 'signup', email });
+  if (error) return showAuthAlert(error.message);
+  showAuthAlert('✅ Verification code resent — check your inbox.', 'success');
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPassword').value;
+  if (!email || !pass) return showAuthAlert('Please enter your email and password.');
+  setLoading('loginBtn', true);
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  setLoading('loginBtn', false, 'Sign In');
+  if (error) return showAuthAlert(error.message);
+}
+
+async function doReset() {
+  const email = document.getElementById('resetEmail').value.trim();
+  if (!email) return showAuthAlert('Please enter your email address.');
+  setLoading('resetBtn', true);
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.href
+  });
+  setLoading('resetBtn', false, 'Send Reset Link');
+  if (error) return showAuthAlert(error.message);
+  showAuthAlert('✅ Reset link sent! Check your email inbox.', 'success');
+}
+
+async function doSignOut() {
+  await sb.auth.signOut();
+}
+
+// ═══════════════════════════════════════════════
+//  AUTH STATE LISTENER
+// ═══════════════════════════════════════════════
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    currentUser = session.user;
+    await bootApp();
+  } else {
+    currentUser = null;
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'none';
+    document.getElementById('authScreen').style.display = 'flex';
+  }
+});
+
+async function bootApp() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  document.getElementById('userEmailBadge').textContent = currentUser.email;
+  await loadRecipes();
+  await loadLibrary();
+  document.getElementById('loadingOverlay').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+  resetRecipeForm();
+  refreshAllDatalists();
+  renderDashboard();
+  document.getElementById('detailModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  DATA LAYER — Supabase
+// ═══════════════════════════════════════════════
+async function loadRecipes() {
+  const { data, error } = await sb.from('recipes').select('*').order('created_at', { ascending: true });
+  if (error) { console.error(error); recipes = []; return; }
+  recipes = (data || []).map(row => ({ ...row.data, id: row.id, _rowId: row.id }));
+}
+
+async function loadLibrary() {
+  const { data, error } = await sb.from('ingredient_library').select('*').order('name', { ascending: true });
+  if (error) {
+    // table may not exist yet — use localStorage fallback
+    library = JSON.parse(localStorage.getItem('bakery_lib_' + currentUser.id) || '[]');
+    return;
+  }
+  library = (data || []).map(row => ({ ...row.data, id: row.id }));
+}
+
+async function persistRecipe(recipeData) {
+  if (recipeData._rowId) {
+    // update
+    const { error } = await sb.from('recipes').update({ data: stripMeta(recipeData) }).eq('id', recipeData._rowId);
+    if (error) throw error;
+    return recipeData._rowId;
+  } else {
+    // insert
+    const { data, error } = await sb.from('recipes').insert({ user_id: currentUser.id, data: recipeData }).select().single();
+    if (error) throw error;
+    return data.id;
+  }
+}
+
+async function deleteRecipeFromDB(rowId) {
+  const { error } = await sb.from('recipes').delete().eq('id', rowId);
+  if (error) throw error;
+}
+
+async function persistLibraryItem(item) {
+  // Try Supabase first, fallback to localStorage
+  try {
+    if (item._rowId) {
+      await sb.from('ingredient_library').update({ data: stripMeta(item) }).eq('id', item._rowId);
+    } else {
+      const { data, error } = await sb.from('ingredient_library').insert({ user_id: currentUser.id, data: item }).select().single();
+      if (error) throw error;
+      item._rowId = data.id;
+      item.id = data.id;
+    }
+  } catch {
+    // fallback: localStorage
+    saveLibraryLocal();
+  }
+}
+
+async function deleteLibraryFromDB(rowId) {
+  try {
+    await sb.from('ingredient_library').delete().eq('id', rowId);
+  } catch { saveLibraryLocal(); }
+}
+
+function saveLibraryLocal() {
+  localStorage.setItem('bakery_lib_' + currentUser.id, JSON.stringify(library));
+}
+
+function stripMeta(obj) {
+  const copy = { ...obj };
+  delete copy._rowId;
+  return copy;
+}
+
+// ═══════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════
+function showPage(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + pageId).classList.add('active');
+  document.querySelector(`[data-page="${pageId}"]`)?.classList.add('active');
+  if (pageId === 'dashboard') renderDashboard();
+  if (pageId === 'recipes') renderRecipeList();
+  if (pageId === 'ingredients-library') renderLibrary();
+  if (pageId === 'compare') renderCompare();
+  if (pageId === 'new-recipe' && editingId === null) resetRecipeForm();
+}
+
+function switchSection(sec) {
+  ['core','deco','pack','overhead'].forEach(s => {
+    document.getElementById('section-' + s).style.display = s === sec ? 'block' : 'none';
+  });
+  document.querySelectorAll('.section-tab').forEach((t,i) => {
+    t.classList.toggle('active', ['core','deco','pack','overhead'][i] === sec);
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════
+function renderDashboard() {
+  document.getElementById('statRecipes').textContent = recipes.length;
+  document.getElementById('headerRecipeCount').textContent = recipes.length + ' Recipe' + (recipes.length !== 1 ? 's' : '');
+  if (recipes.length === 0) {
+    document.getElementById('statAvgCost').textContent = cur()+'0.00';
+    document.getElementById('statAvgMargin').textContent = '0%';
+    document.getElementById('statBestRecipe').textContent = '—';
+    document.getElementById('dashboardRecent').innerHTML = `<div class="empty-state"><span class="empty-state-icon">🍰</span><h3>No recipes yet</h3><p>Create your first recipe to get started!</p><br><button class="btn btn-primary" onclick="showPage('new-recipe')">✨ Create Recipe</button></div>`;
+    return;
+  }
+  const totals = recipes.map(r => ({ r, cost: totalCost(r), margin: profitMargin(r) }));
+  const avgCost = totals.reduce((a,t) => a + t.cost, 0) / totals.length;
+  const avgMargin = totals.reduce((a,t) => a + t.margin, 0) / totals.length;
+  const best = [...totals].sort((a,b) => b.margin - a.margin)[0];
+  document.getElementById('statAvgCost').textContent = cur() + avgCost.toFixed(2);
+  document.getElementById('statAvgMargin').textContent = avgMargin.toFixed(0) + '%';
+  document.getElementById('statBestRecipe').textContent = best.r.name.slice(0,18);
+  const recent = [...recipes].slice(-4).reverse();
+  document.getElementById('dashboardRecent').innerHTML = recent.map(r => miniRecipeCard(r)).join('');
+}
+
+function miniRecipeCard(r) {
+  const margin = profitMargin(r);
+  const mcls = margin >= 30 ? 'good' : margin >= 10 ? 'warn' : 'bad';
+  return `<div class="recipe-cost-row" style="padding:.6rem .2rem;cursor:pointer;" onclick="openDetail('${r.id}')">
+    <span><strong>${recipeEmoji(r)} ${r.name}</strong> <span class="tag">${r.category}</span></span>
+    <span><span class="profit-badge ${mcls}">${margin.toFixed(0)}% margin</span></span>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+//  RECIPE LIST
+// ═══════════════════════════════════════════════
+function renderRecipeList() {
+  const q = (document.getElementById('recipeSearch')?.value || '').toLowerCase();
+  const filtered = recipes.filter(r => r.name?.toLowerCase().includes(q) || r.category?.toLowerCase().includes(q));
+  if (filtered.length === 0) {
+    document.getElementById('recipeGrid').innerHTML = `<div class="empty-state" style="grid-column:1/-1"><span class="empty-state-icon">🍪</span><h3>${recipes.length === 0 ? 'No recipes yet' : 'No results'}</h3><p>${recipes.length === 0 ? 'Click "New Recipe" to add your first one.' : 'Try a different search.'}</p>${recipes.length===0?'<br><button class="btn btn-primary" onclick="showPage(\'new-recipe\')">✨ Create First Recipe</button>':''}</div>`;
+    return;
+  }
+  document.getElementById('recipeGrid').innerHTML = filtered.map(r => recipeCard(r)).join('');
+}
+
+function recipeCard(r) {
+  const cost = totalCost(r);
+  const profit = profitPerUnit(r);
+  const margin = profitMargin(r);
+  const mcls = margin >= 30 ? 'good' : margin >= 10 ? 'warn' : 'bad';
+  return `<div class="recipe-card" onclick="openDetail('${r.id}')">
+    <div class="recipe-card-header">
+      <div><div class="recipe-card-name">${r.name}</div><div class="recipe-card-yield">${r.category} · Yield: ${r.yield} units</div></div>
+      <div class="recipe-emoji">${recipeEmoji(r)}</div>
+    </div>
+    <div class="recipe-card-body">
+      <div class="recipe-cost-row"><span>Total Batch Cost</span><strong>${cur()}${cost.toFixed(2)}</strong></div>
+      <div class="recipe-cost-row"><span>Cost per Unit</span><strong>${cur()}${(cost/r.yield).toFixed(2)}</strong></div>
+      <div class="recipe-cost-row"><span>Sell Price</span><strong>${cur()}${parseFloat(r.sellPrice).toFixed(2)}</strong></div>
+      <div class="recipe-cost-row"><span>Profit per Unit</span><strong style="color:${profit>=0?'var(--sage)':'#C62828'}">${cur()}${profit.toFixed(2)}</strong></div>
+      <div class="recipe-cost-row"><span>Margin</span><span class="profit-badge ${mcls}">${margin.toFixed(1)}%</span></div>
+      <div class="recipe-card-actions" onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="editRecipe('${r.id}')">✏️ Edit</button>
+        <button class="btn btn-sm btn-secondary" onclick="openDetail('${r.id}')">👁 View</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function recipeEmoji(r) {
+  const map = {'Cakes':'🎂','Cupcakes':'🧁','Cookies & Biscuits':'🍪','Bread & Loaves':'🍞','Tarts & Pies':'🥧','Pastries':'🥐','Brownies & Bars':'🍫','Celebration Cakes':'🎂'};
+  return map[r.category] || '🍰';
+}
+
+// ═══════════════════════════════════════════════
+//  CALCULATIONS
+// ═══════════════════════════════════════════════
+function totalCost(r) {
+  const sum = arr => (arr||[]).reduce((a,i) => a + parseFloat(i.cost||0), 0);
+  return sum(r.core) + sum(r.deco) + sum(r.pack) + sum(r.overheads);
+}
+function profitPerUnit(r) { return parseFloat(r.sellPrice) - (totalCost(r) / r.yield); }
+function profitMargin(r) { const sp = parseFloat(r.sellPrice); if (!sp) return 0; return (profitPerUnit(r)/sp)*100; }
+
+// ═══════════════════════════════════════════════
+//  RECIPE FORM
+// ═══════════════════════════════════════════════
+function resetRecipeForm() {
+  editingId = null;
+  document.getElementById('recipeFormTitle').innerHTML = 'Create a <em>New Recipe</em>';
+  document.getElementById('deleteRecipeBtn').style.display = 'none';
+  document.getElementById('saveRecipeBtn').innerHTML = '💾 Save Recipe';
+  ['rName','rYield','rSellPrice','rMethod'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('rCategory').value = '';
+  ['coreRows','decoRows','packRows','overheadRows'].forEach(id => document.getElementById(id).innerHTML = '');
+  coreCounter = decoCounter = packCounter = overheadCounter = 0;
+  switchSection('core');
+  addIngredientRow('core');
+  addOverheadRow();
+  updateLiveSummary();
+  document.getElementById('formAlert').innerHTML = '';
+}
+
+function addIngredientRow(type) {
+  const counter = type === 'core' ? ++coreCounter : type === 'deco' ? ++decoCounter : ++packCounter;
+  const id = `${type}_${counter}`;
+  const container = document.getElementById(type + 'Rows');
+  const div = document.createElement('div');
+  div.className = 'ingredient-row';
+  div.id = 'row_' + id;
+  const units = ['g','kg','ml','L','tsp','tbsp','cup','each','pack','box','roll','sheet','other'];
+  div.innerHTML = `
+    <div>
+      <input type="text" id="name_${id}" placeholder="Ingredient name…" list="libSuggest_${id}"
+        oninput="onIngredientNameInput('${id}')" onchange="onIngredientNameInput('${id}')">
+      <datalist id="libSuggest_${id}"></datalist>
+      <div class="ingredient-row-price" id="libHint_${id}"></div>
+    </div>
+    <input type="number" id="qty_${id}" min="0" step="any" placeholder="Qty" oninput="updateLiveSummary()" style="text-align:center">
+    <select id="unit_${id}" onchange="updateLiveSummary()">${units.map(u=>`<option>${u}</option>`).join('')}</select>
+    <div class="input-prefix-wrapper"><span class="input-prefix">$</span>
+      <input type="number" id="cost_${id}" min="0" step="0.01" placeholder="0.00"
+        oninput="updateLibraryFromRow('${id}'); updateLiveSummary()">
+    </div>
+    <button class="btn btn-danger btn-sm" onclick="removeRow('row_${id}')" title="Remove">✕</button>`;
+  container.appendChild(div);
+  refreshDatalist(id);
+}
+
+function addOverheadRow() {
+  ++overheadCounter;
+  const id = `oh_${overheadCounter}`;
+  const container = document.getElementById('overheadRows');
+  const div = document.createElement('div');
+  div.className = 'overhead-row';
+  div.id = 'row_' + id;
+  div.innerHTML = `
+    <input type="text" id="name_${id}" placeholder="e.g. Labour (2 hrs)">
+    <select id="unit_${id}"><option>Labour</option><option>Electricity</option><option>Gas</option><option>Transport</option><option>Rent/Space</option><option>Equipment</option><option>Supplies</option><option>Other</option></select>
+    <div class="input-prefix-wrapper"><span class="input-prefix">$</span>
+      <input type="number" id="cost_${id}" min="0" step="0.01" placeholder="0.00" oninput="updateLiveSummary()">
+    </div>
+    <button class="btn btn-danger btn-sm" onclick="removeRow('row_${id}')" title="Remove">✕</button>`;
+  container.appendChild(div);
+}
+
+function removeRow(rowId) { const el = document.getElementById(rowId); if (el) { el.remove(); updateLiveSummary(); } }
+
+function onIngredientNameInput(id) {
+  const name = document.getElementById('name_' + id)?.value.trim().toLowerCase();
+  const hint = document.getElementById('libHint_' + id);
+  const match = library.find(l => l.name.toLowerCase() === name);
+  if (match) {
+    document.getElementById('cost_' + id).value = match.price.toFixed(2);
+    if (hint) hint.textContent = `📚 Library: ${cur()}${match.price.toFixed(2)} / ${match.packQty||''}${match.unit}`;
+  } else { if (hint) hint.textContent = ''; }
+  updateLiveSummary();
+}
+
+function updateLibraryFromRow(id) {
+  const nameEl = document.getElementById('name_' + id);
+  if (!nameEl) return;
+  const name = nameEl.value.trim();
+  if (!name) return;
+  const cost = parseFloat(document.getElementById('cost_' + id)?.value) || 0;
+  if (!cost) return;
+  const unit = document.getElementById('unit_' + id)?.value || '';
+  const qty = parseFloat(document.getElementById('qty_' + id)?.value) || 1;
+  const idx = library.findIndex(l => l.name.toLowerCase() === name.toLowerCase());
+  if (idx >= 0) { library[idx].price = cost; library[idx].unit = unit; persistLibraryItem(library[idx]); }
+  else { const item = { id: uid(), name, packQty: qty, unit, price: cost }; library.push(item); persistLibraryItem(item); }
+  refreshAllDatalists();
+}
+
+function refreshDatalist(rowId) {
+  const dl = document.getElementById('libSuggest_' + rowId);
+  if (dl) dl.innerHTML = library.map(l => `<option value="${l.name}">`).join('');
+}
+
+function refreshAllDatalists() {
+  document.querySelectorAll('[id^="libSuggest_"]').forEach(dl => {
+    dl.innerHTML = library.map(l => `<option value="${l.name}">`).join('');
+  });
+  const main = document.getElementById('libNameSuggestions');
+  if (main) main.innerHTML = library.map(l => `<option value="${l.name}">`).join('');
+}
+
+function updateLiveSummary() {
+  const data = collectFormData(false);
+  if (!data) { document.getElementById('liveSummaryContent').innerHTML = '<div style="color:var(--blush);font-size:.85rem;">Fill in the form above to see a live cost summary.</div>'; return; }
+  const core = data.core.reduce((a,i)=>a+i.cost,0), deco = data.deco.reduce((a,i)=>a+i.cost,0);
+  const pack = data.pack.reduce((a,i)=>a+i.cost,0), oh = data.overheads.reduce((a,i)=>a+i.cost,0);
+  const total = core+deco+pack+oh, yield_ = parseFloat(data.yield)||1, sp = parseFloat(data.sellPrice)||0;
+  const cpUnit = total/yield_, profit = sp-cpUnit, margin = sp?(profit/sp*100):0;
+  const pcls = profit >= 0 ? 'profit-positive' : 'profit-negative';
+  document.getElementById('liveSummaryContent').innerHTML = `
+    <div class="cost-line"><span>🧈 Core Ingredients</span><span>${cur()}${core.toFixed(2)}</span></div>
+    <div class="cost-line"><span>🌸 Decorating</span><span>${cur()}${deco.toFixed(2)}</span></div>
+    <div class="cost-line"><span>📦 Packaging</span><span>${cur()}${pack.toFixed(2)}</span></div>
+    <div class="cost-line"><span>⚡ Overheads</span><span>${cur()}${oh.toFixed(2)}</span></div>
+    <div class="cost-line total"><span>Total Batch Cost</span><span>${cur()}${total.toFixed(2)}</span></div>
+    <div class="cost-line total" style="color:var(--blush)"><span>Cost per Unit (÷${yield_})</span><span>${cur()}${cpUnit.toFixed(2)}</span></div>
+    ${sp?`<div class="cost-line total" style="color:var(--cream)"><span>Selling Price</span><span>${cur()}${sp.toFixed(2)}</span></div>
+    <div class="cost-line profit ${pcls}"><span>Profit per Unit</span><span>${profit>=0?'+':''}${cur()}${profit.toFixed(2)}</span></div>
+    <div class="cost-line profit ${pcls}"><span>Profit Margin</span><span>${margin.toFixed(1)}%</span></div>`:''}`;
+}
+
+function collectFormData(validate=true) {
+  const name = document.getElementById('rName').value.trim();
+  const category = document.getElementById('rCategory').value;
+  const yield_ = parseFloat(document.getElementById('rYield').value);
+  const sellPrice = parseFloat(document.getElementById('rSellPrice').value);
+  const method = document.getElementById('rMethod').value.trim();
+  if (validate) {
+    if (!name) { showAlert('formAlert','Please enter a recipe name.','error'); return null; }
+    if (!category) { showAlert('formAlert','Please select a category.','error'); return null; }
+    if (!yield_||yield_<1) { showAlert('formAlert','Please enter a valid yield.','error'); return null; }
+    if (!sellPrice||sellPrice<=0) { showAlert('formAlert','Please enter a selling price.','error'); return null; }
+  }
+  const readRows = (containerEl) => {
+    const rows = [];
+    containerEl.querySelectorAll('.ingredient-row').forEach(row => {
+      const id = row.id.replace('row_','');
+      const n = document.getElementById('name_'+id)?.value.trim();
+      const cost = parseFloat(document.getElementById('cost_'+id)?.value)||0;
+      if (!n && !cost) return;
+      rows.push({ name:n||'', qty:parseFloat(document.getElementById('qty_'+id)?.value)||1, unit:document.getElementById('unit_'+id)?.value||'', cost });
+    });
+    return rows;
+  };
+  const readOverheads = () => {
+    const rows = [];
+    document.getElementById('overheadRows').querySelectorAll('.overhead-row').forEach(row => {
+      const id = row.id.replace('row_','');
+      const n = document.getElementById('name_'+id)?.value.trim();
+      const cost = parseFloat(document.getElementById('cost_'+id)?.value)||0;
+      if (!n && !cost) return;
+      rows.push({ name:n||'', category:document.getElementById('unit_'+id)?.value||'Other', cost });
+    });
+    return rows;
+  };
+  return { name, category, yield:yield_||1, sellPrice:sellPrice||0, method,
+    core:readRows(document.getElementById('coreRows')),
+    deco:readRows(document.getElementById('decoRows')),
+    pack:readRows(document.getElementById('packRows')),
+    overheads:readOverheads() };
+}
+
+async function saveRecipe() {
+  const data = collectFormData(true);
+  if (!data) return;
+  if (data.core.length === 0) { showAlert('formAlert','Please add at least one core ingredient.','error'); return; }
+  const btn = document.getElementById('saveRecipeBtn');
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Saving…';
+  try {
+    if (editingId) {
+      const existing = recipes.find(r => r.id === editingId);
+      const updated = { ...existing, ...data };
+      await persistRecipe(updated);
+      const idx = recipes.findIndex(r => r.id === editingId);
+      if (idx >= 0) recipes[idx] = updated;
+    } else {
+      const newRecipe = { id: uid(), ...data, createdAt: Date.now() };
+      const rowId = await persistRecipe(newRecipe);
+      newRecipe._rowId = rowId; newRecipe.id = rowId;
+      recipes.push(newRecipe);
+    }
+    showAlert('formAlert', editingId ? '✅ Recipe updated!' : '✅ Recipe saved!', 'success');
+    editingId = null;
+    document.getElementById('deleteRecipeBtn').style.display = 'none';
+    document.getElementById('recipeFormTitle').innerHTML = 'Create a <em>New Recipe</em>';
+    renderDashboard();
+  } catch(e) {
+    showAlert('formAlert', 'Error saving recipe: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.innerHTML = '💾 Save Recipe';
+}
+
+function editRecipe(id) {
+  const r = recipes.find(r => r.id === id);
+  if (!r) return;
+  editingId = id;
+  document.getElementById('recipeFormTitle').innerHTML = `Edit <em>${r.name}</em>`;
+  document.getElementById('deleteRecipeBtn').style.display = 'inline-flex';
+  document.getElementById('rName').value = r.name;
+  document.getElementById('rCategory').value = r.category;
+  document.getElementById('rYield').value = r.yield;
+  document.getElementById('rSellPrice').value = r.sellPrice;
+  document.getElementById('rMethod').value = r.method || '';
+  ['coreRows','decoRows','packRows','overheadRows'].forEach(id => document.getElementById(id).innerHTML = '');
+  coreCounter = decoCounter = packCounter = overheadCounter = 0;
+  (r.core||[]).forEach(item => { addIngredientRow('core'); fillLastIngRow('core',item); });
+  (r.deco||[]).forEach(item => { addIngredientRow('deco'); fillLastIngRow('deco',item); });
+  (r.pack||[]).forEach(item => { addIngredientRow('pack'); fillLastIngRow('pack',item); });
+  (r.overheads||[]).forEach(item => { addOverheadRow(); fillLastOhRow(item); });
+  if (!(r.core?.length)) addIngredientRow('core');
+  if (!(r.overheads?.length)) addOverheadRow();
+  switchSection('core'); showPage('new-recipe'); updateLiveSummary();
+  document.getElementById('formAlert').innerHTML = ''; closeModal();
+}
+
+function fillLastIngRow(type, item) {
+  const counter = type==='core'?coreCounter:type==='deco'?decoCounter:packCounter;
+  const id = `${type}_${counter}`;
+  document.getElementById('name_'+id).value = item.name;
+  document.getElementById('qty_'+id).value = item.qty;
+  const u = document.getElementById('unit_'+id); if(u) u.value = item.unit||'g';
+  document.getElementById('cost_'+id).value = item.cost;
+  refreshDatalist(id);
+}
+
+function fillLastOhRow(item) {
+  const id = `oh_${overheadCounter}`;
+  document.getElementById('name_'+id).value = item.name;
+  const u = document.getElementById('unit_'+id); if(u) u.value = item.category||'Other';
+  document.getElementById('cost_'+id).value = item.cost;
+}
+
+async function deleteCurrentRecipe() {
+  if (!editingId) return;
+  if (!confirm('Delete this recipe? This cannot be undone.')) return;
+  const r = recipes.find(r => r.id === editingId);
+  try { await deleteRecipeFromDB(r._rowId || editingId); } catch(e) { alert('Error: '+e.message); return; }
+  recipes = recipes.filter(r => r.id !== editingId);
+  editingId = null; resetRecipeForm(); showPage('recipes'); renderDashboard();
+}
+
+// ═══════════════════════════════════════════════
+//  RECIPE DETAIL MODAL
+// ═══════════════════════════════════════════════
+function openDetail(id) {
+  const r = recipes.find(r => r.id === id);
+  if (!r) return;
+  const cost = totalCost(r), cpUnit = cost/r.yield, profit = profitPerUnit(r), margin = profitMargin(r);
+  const mcls = margin>=30?'good':margin>=10?'warn':'bad';
+  const ingTable = (items, label) => {
+    if (!items?.length) return '';
+    return `<div class="detail-section"><h3>${label}</h3><table class="detail-table">
+      <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th class="amt-col">Cost (${cur()})</th></tr></thead>
+      <tbody>${items.map(i=>`<tr><td>${i.name}</td><td>${i.qty}</td><td>${i.unit||''}</td><td class="amt-col">${cur()}${parseFloat(i.cost).toFixed(2)}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+  };
+  const ohTable = items => {
+    if (!items?.length) return '';
+    return `<div class="detail-section"><h3>⚡ Overheads</h3><table class="detail-table">
+      <thead><tr><th>Description</th><th>Category</th><th class="amt-col">Cost (${cur()})</th></tr></thead>
+      <tbody>${items.map(i=>`<tr><td>${i.name}</td><td>${i.category||'Other'}</td><td class="amt-col">${cur()}${parseFloat(i.cost).toFixed(2)}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+  };
+  document.getElementById('detailModalContent').innerHTML = `
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;">
+      <div style="font-size:3rem;line-height:1">${recipeEmoji(r)}</div>
+      <div><div style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--chocolate)">${r.name}</div>
+      <div style="font-size:.82rem;color:var(--text-light)">${r.category} · Yield: ${r.yield} units</div></div>
+      <span class="profit-badge ${mcls}" style="margin-left:auto">${margin.toFixed(0)}% margin</span>
+    </div>
+    ${ingTable(r.core,'🧈 Core Ingredients')}${ingTable(r.deco,'🌸 Decorating')}${ingTable(r.pack,'📦 Packaging')}${ohTable(r.overheads)}
+    ${r.method?`<div class="detail-section"><h3>📝 Method</h3><div class="instructions-box">${r.method}</div></div>`:''}
+    <div class="cost-summary" style="margin-top:1rem;">
+      <div class="cost-summary-title">💵 Cost Summary</div>
+      <div class="cost-line"><span>Total Batch Cost</span><span>${cur()}${cost.toFixed(2)}</span></div>
+      <div class="cost-line"><span>Cost per Unit</span><span>${cur()}${cpUnit.toFixed(2)}</span></div>
+      <div class="cost-line"><span>Selling Price</span><span>${cur()}${parseFloat(r.sellPrice).toFixed(2)}</span></div>
+      <div class="cost-line profit" style="color:${profit>=0?'#A5D6A7':'#EF9A9A'}"><span>Profit per Unit</span><span>${profit>=0?'+':''}${cur()}${profit.toFixed(2)}</span></div>
+      <div class="cost-line profit" style="color:${profit>=0?'#A5D6A7':'#EF9A9A'}"><span>Profit Margin</span><span>${margin.toFixed(1)}%</span></div>
+      <div class="cost-line profit" style="color:var(--gold)"><span>Estimated Batch Profit</span><span>${cur()}${(profit*r.yield).toFixed(2)}</span></div>
+    </div>`;
+  document.getElementById('detailEditBtn').onclick = () => editRecipe(id);
+  document.getElementById('detailDeleteBtn').onclick = async () => {
+    if (!confirm('Delete this recipe?')) return;
+    try { await deleteRecipeFromDB(r._rowId||id); } catch(e) { alert('Error: '+e.message); return; }
+    recipes = recipes.filter(x => x.id !== id);
+    closeModal(); renderRecipeList(); renderDashboard();
+  };
+  document.getElementById('detailModal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('detailModal').classList.remove('open'); }
+
+// ═══════════════════════════════════════════════
+//  INGREDIENT LIBRARY
+// ═══════════════════════════════════════════════
+async function addLibraryItem() {
+  const name = document.getElementById('libName').value.trim();
+  const qty = parseFloat(document.getElementById('libQty').value)||0;
+  const unit = document.getElementById('libUnit').value;
+  const price = parseFloat(document.getElementById('libPrice').value);
+  if (!name) { showAlert('libAlert','Please enter an item name.','error'); return; }
+  if (!price||price<=0) { showAlert('libAlert','Please enter a valid price.','error'); return; }
+  const idx = library.findIndex(l => l.name.toLowerCase()===name.toLowerCase());
+  if (idx>=0) {
+    library[idx] = { ...library[idx], packQty:qty, unit, price };
+    await persistLibraryItem(library[idx]);
+    showAlert('libAlert',`✅ "${name}" updated.`,'success');
+  } else {
+    const item = { id:uid(), name, packQty:qty, unit, price };
+    library.push(item);
+    await persistLibraryItem(item);
+    showAlert('libAlert',`✅ "${name}" added.`,'success');
+  }
+  document.getElementById('libName').value=''; document.getElementById('libQty').value=''; document.getElementById('libPrice').value='';
+  renderLibrary(); refreshAllDatalists();
+}
+
+function renderLibrary() {
+  const q = (document.getElementById('libSearch')?.value||'').toLowerCase();
+  const filtered = library.filter(l => l.name.toLowerCase().includes(q));
+  if (filtered.length===0) {
+    document.getElementById('libraryGrid').innerHTML=`<div class="empty-state" style="grid-column:1/-1"><span class="empty-state-icon">🫙</span><h3>${library.length===0?'Library is empty':'No results'}</h3><p>Add ingredients above to build your pricing database.</p></div>`;
+    return;
+  }
+  document.getElementById('libraryGrid').innerHTML = filtered.map(l=>`
+    <div class="library-item">
+      <div><div class="library-item-name">${l.name}</div><div class="library-item-unit">${l.packQty||'—'} ${l.unit}</div></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div class="library-item-price">${cur()}${l.price.toFixed(2)}</div>
+        <button class="btn btn-danger btn-sm" onclick="removeLibItem('${l.id}')">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+async function removeLibItem(id) {
+  const item = library.find(l=>l.id===id);
+  if (item) await deleteLibraryFromDB(item._rowId||id);
+  library = library.filter(l=>l.id!==id);
+  renderLibrary(); refreshAllDatalists();
+}
+
+// ═══════════════════════════════════════════════
+//  COMPARE
+// ═══════════════════════════════════════════════
+function renderCompare() {
+  if (recipes.length===0) {
+    ['compareProfitPerUnit','compareMargin','compareTable'].forEach(id=>{
+      document.getElementById(id).innerHTML=`<div class="empty-state"><span class="empty-state-icon">📊</span><h3>No recipes to compare</h3><p>Create at least two recipes to compare.</p></div>`;
+    }); return;
+  }
+  const data = recipes.map(r=>({ name:r.name, emoji:recipeEmoji(r), cost:totalCost(r), cpUnit:totalCost(r)/r.yield,
+    profit:profitPerUnit(r), margin:profitMargin(r), sellPrice:parseFloat(r.sellPrice), yield:r.yield,
+    batchProfit:profitPerUnit(r)*r.yield, id:r.id })).sort((a,b)=>b.margin-a.margin);
+  const maxProfit = Math.max(...data.map(d=>Math.abs(d.profit)),0.01);
+  const maxMargin = Math.max(...data.map(d=>Math.abs(d.margin)),0.01);
+  const barColors = ['#D4856A','#8A9E7A','#B8A9C9','#E8B86D','#6B3A2A','#C5D4BB'];
+  document.getElementById('compareProfitPerUnit').innerHTML = data.map((d,i)=>`
+    <div class="compare-row">
+      <div class="compare-label">${d.emoji} ${d.name}</div>
+      <div class="compare-bar-track"><div class="compare-bar-fill" style="width:${Math.max(5,(Math.abs(d.profit)/maxProfit)*100)}%;background:${d.profit>=0?barColors[i%barColors.length]:'#EF9A9A'}">
+        ${d.profit>=0?'+':''}${cur()}${d.profit.toFixed(2)}</div></div>
+    </div>`).join('');
+  document.getElementById('compareMargin').innerHTML = data.map((d,i)=>`
+    <div class="compare-row">
+      <div class="compare-label">${d.emoji} ${d.name}</div>
+      <div class="compare-bar-track"><div class="compare-bar-fill" style="width:${Math.max(5,(Math.abs(d.margin)/maxMargin)*100)}%;background:${d.margin>=30?barColors[i%barColors.length]:d.margin>=10?'#E8B86D':'#EF9A9A'}">
+        ${d.margin.toFixed(0)}%</div></div>
+    </div>`).join('');
+  document.getElementById('compareTable').innerHTML = `
+    <table class="detail-table" style="min-width:600px"><thead><tr>
+      <th>Recipe</th><th class="amt-col">Sell Price</th><th class="amt-col">Cost/Unit</th>
+      <th class="amt-col">Profit/Unit</th><th class="amt-col">Margin</th><th class="amt-col">Batch Profit</th><th></th>
+    </tr></thead><tbody>
+    ${data.map((d,i)=>{const mcls=d.margin>=30?'good':d.margin>=10?'warn':'bad';return`<tr>
+      <td><strong>${d.emoji} ${d.name}</strong>${i===0?` <span class="tag" style="background:var(--sage-light);color:var(--sage)">🏆 Best</span>`:''}${i===data.length-1&&data.length>1?` <span class="tag" style="background:#FFEBEE;color:#C62828">Needs review</span>`:''}</td>
+      <td class="amt-col">${cur()}${d.sellPrice.toFixed(2)}</td><td class="amt-col">${cur()}${d.cpUnit.toFixed(2)}</td>
+      <td class="amt-col" style="color:${d.profit>=0?'var(--sage)':'#C62828'}">${d.profit>=0?'+':''}${cur()}${d.profit.toFixed(2)}</td>
+      <td class="amt-col"><span class="profit-badge ${mcls}">${d.margin.toFixed(1)}%</span></td>
+      <td class="amt-col" style="color:${d.batchProfit>=0?'var(--sage)':'#C62828'}">${d.batchProfit>=0?'+':''}${cur()}${d.batchProfit.toFixed(2)}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="openDetail('${d.id}')">View</button></td>
+    </tr>`;}).join('')}
+    </tbody></table>`;
+}
+
+// ═══════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════
+function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+function showAlert(containerId, msg, type) {
+  const el = document.getElementById(containerId);
+  if (el) { el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`; setTimeout(()=>{ if(el) el.innerHTML=''; },4000); }
+}
+</script>
+</body>
+</html>
